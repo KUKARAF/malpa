@@ -16,22 +16,26 @@ Rozszerzenie Chrome zasilane przez AI, które generuje i zarządza userscriptami
 - Włączony **Developer Mode** w `chrome://extensions`
 - Włączony przełącznik **Allow User Scripts** na stronie szczegółów rozszerzenia
 
-## Instalacja
+## Pobierz i zainstaluj
 
-### Ze źródeł
+> **[⬇ Pobierz najnowszą wersję (malpa.zip)](https://github.com/kukaraf/malpa/releases/latest/download/malpa.zip)**
+
+1. Rozpakuj pobrany plik `malpa.zip`
+2. Otwórz `chrome://extensions`
+3. Włącz **Developer Mode** (prawy górny róg)
+4. Kliknij **Load unpacked** i wskaż rozpakowany folder
+5. Wejdź w **Details → Allow User Scripts**
+6. Kliknij ikonę rozszerzenia → **Options** i wpisz klucz API z [openrouter.ai](https://openrouter.ai/keys)
+
+Wszystkie kolejne wersje są publikowane automatycznie na [stronie Releases](https://github.com/kukaraf/malpa/releases).
+
+## Instalacja ze źródeł
 
 ```bash
 git clone https://github.com/kukaraf/malpa.git
 ```
 
-1. Otwórz `chrome://extensions`
-2. Włącz **Developer Mode** (prawy górny róg)
-3. Kliknij **Load unpacked** i wskaż folder repozytorium
-4. Wejdź w **Details → Allow User Scripts**
-
-### Z release
-
-Pobierz `malpa.zip` z [zakładki Releases](https://github.com/kukaraf/malpa/releases), rozpakuj i załaduj rozpakowany folder przez **Load unpacked**.
+Następnie wykonaj kroki 2–6 powyżej wskazując sklonowany folder.
 
 ## Konfiguracja
 
