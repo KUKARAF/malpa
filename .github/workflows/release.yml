@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          mkdir -p dist
+          zip -r dist/malpa.zip \
+            manifest.json \
+            background.js \
+            content.js \
+            popup.html popup.js \
+            dashboard.html dashboard.js \
+            settings.html settings.js \
+            icons/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: malpa
+          path: dist/malpa.zip
+
+      - name: Create or update rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: "Latest build from commit ${{ github.sha }}"
+          files: dist/malpa.zip
+          prerelease: false
