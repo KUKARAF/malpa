@@ -263,16 +263,30 @@
       cursor: pointer;
     }
     .modal-close:hover { color: #bbb; }
-    .modal pre {
+    .modal-code {
       font-size: 12px;
+      font-family: monospace;
       color: #aaa;
       background: #0a0a0a;
       border: 1px solid #222;
       border-radius: 5px;
       padding: 12px;
-      white-space: pre-wrap;
-      word-break: break-all;
+      white-space: pre;
+      width: 100%;
+      min-height: 300px;
+      resize: vertical;
+      outline: none;
+      display: block;
     }
+    .modal-code:focus { border-color: #444; }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .modal-save-msg { font-size: 12px; color: #4ade80; align-self: center; display: none; }
+    .modal-save-msg.visible { display: block; }
   </style>
 </head>
 <body>
@@ -344,14 +358,19 @@
     </a>
   </div>
 
-  <!-- Code viewer modal -->
+  <!-- Code viewer/editor modal -->
   <div class="modal-overlay" id="code-modal">
     <div class="modal">
       <div class="modal-header">
         <h3 id="modal-title">Script Code</h3>
         <button class="modal-close" id="modal-close">×</button>
       </div>
-      <pre id="modal-code"></pre>
+      <textarea id="modal-code" class="modal-code" spellcheck="false"></textarea>
+      <div class="modal-footer">
+        <span class="modal-save-msg" id="modal-save-msg">Saved!</span>
+        <button class="btn-cancel" id="modal-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="modal-save-btn">Save</button>
+      </div>
     </div>
   </div>
 

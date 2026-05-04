@@ -3,9 +3,33 @@
 const DEFAULT_SETTINGS = {
   openrouterApiKey: "",
   model: "anthropic/claude-sonnet-4-5",
+  maxTokens: 8192,
   maxIterations: 10,
   domTruncationBytes: 150000,
 };
+
+// ── Loki logging ──────────────────────────────────────────────────────────────
+// Toggle LOKI_ENABLED to true locally to ship logs to Loki.
+// CI/CD refuses to build if this is true — never ship with it enabled.
+
+const LOKI_ENABLED = false;
+const LOKI_URL = "http://192.168.1.66:3100";
+
+function lokiLog(labels, payload) {
+  if (!LOKI_ENABLED) return;
+  const tsNs = String(BigInt(Date.now()) * 1_000_000n);
+  const body = {
+    streams: [{
+      stream: { job: "malpa", ...labels },
+      values: [[tsNs, JSON.stringify(payload)]],
+    }],
+  };
+  fetch(`${LOKI_URL}/loki/api/v1/push`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch((e) => console.warn("[malpa] Loki push failed:", e.message));
+}
 
 const TOOLS = [
   {
@@ -214,9 +238,187 @@ async function reregisterAllScripts() {
   }
 }
 
+// ── Default scripts (seeded on first install) ─────────────────────────────────
+
+const DEFAULT_SCRIPTS = [
+  {
+    name: "Trans.eu Auto-Refresh with Progress Bar",
+    matchPattern: "*://platform.trans.eu/freights/sent*",
+    code: `(function() {
+    'use strict';
+
+    let autoRefreshInterval = null;
+    let autoRefreshEnabled = false;
+    let refreshMinutes = 15;
+    let progressInterval = null;
+    let elapsedSeconds = 0;
+
+    function clickAllReloadButtons() {
+        const reloadButtons = document.querySelectorAll('a[data-ctx="anchor-resubmit-freight"]');
+        console.log(\`Auto-refresh: Found \${reloadButtons.length} reload buttons to click\`);
+        reloadButtons.forEach((button, index) => {
+            setTimeout(() => {
+                console.log(\`Clicking reload button \${index + 1}/\${reloadButtons.length}\`);
+                button.click();
+            }, index * 1000);
+        });
+    }
+
+    function startAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        if (progressInterval) clearInterval(progressInterval);
+
+        const intervalMs = refreshMinutes * 60 * 1000;
+        const totalSeconds = refreshMinutes * 60;
+        elapsedSeconds = 0;
+
+        const progressBar = document.getElementById('auto-refresh-progress');
+
+        progressInterval = setInterval(() => {
+            elapsedSeconds++;
+            const percent = (elapsedSeconds / totalSeconds) * 100;
+            if (progressBar) progressBar.style.width = percent + "%";
+            if (elapsedSeconds >= totalSeconds) elapsedSeconds = 0;
+        }, 1000);
+
+        autoRefreshInterval = setInterval(() => {
+            console.log('Auto-refresh triggered');
+            clickAllReloadButtons();
+            elapsedSeconds = 0;
+            if (progressBar) progressBar.style.width = "0%";
+        }, intervalMs);
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+        if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+        const progressBar = document.getElementById('auto-refresh-progress');
+        if (progressBar) progressBar.style.width = "0%";
+    }
+
+    function injectAutoRefreshControls() {
+        if (document.getElementById('auto-refresh-controls')) return;
+        const toolbar = document.querySelector('._2op11k2_i_a');
+        if (!toolbar) return;
+
+        const style = document.createElement('style');
+        style.textContent = \`
+            #auto-refresh-toggle:checked { background-color: #22c55e; }
+            #auto-refresh-toggle::before {
+                content: ''; position: absolute;
+                width: 16px; height: 16px; border-radius: 50%;
+                background-color: white; top: 2px; left: 2px;
+                transition: transform 0.3s;
+            }
+            #auto-refresh-toggle:checked::before { transform: translateX(20px); }
+        \`;
+        document.head.appendChild(style);
+
+        const container = document.createElement('div');
+        container.id = 'auto-refresh-controls';
+        container.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;background-color:#f3f4f6;border-radius:6px;margin-left:12px;border:1px solid #e5e7eb;';
+
+        const toggleLabel = document.createElement('label');
+        toggleLabel.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;';
+        const toggleText = document.createElement('span');
+        toggleText.textContent = 'Auto Refresh:';
+        toggleText.style.cssText = 'font-size:13px;font-weight:500;color:#374151;';
+        const toggleSwitch = document.createElement('input');
+        toggleSwitch.type = 'checkbox';
+        toggleSwitch.id = 'auto-refresh-toggle';
+        toggleSwitch.style.cssText = 'width:40px;height:20px;cursor:pointer;appearance:none;background-color:#d1d5db;border-radius:10px;position:relative;transition:background-color 0.3s;';
+        toggleLabel.appendChild(toggleText);
+        toggleLabel.appendChild(toggleSwitch);
+
+        const inputLabel = document.createElement('label');
+        inputLabel.style.cssText = 'display:flex;align-items:center;gap:6px;';
+        const inputText = document.createElement('span');
+        inputText.textContent = 'Interval:';
+        inputText.style.cssText = 'font-size:13px;color:#374151;';
+        const intervalInput = document.createElement('input');
+        intervalInput.type = 'number';
+        intervalInput.id = 'auto-refresh-interval';
+        intervalInput.value = '15';
+        intervalInput.min = '1';
+        intervalInput.max = '120';
+        intervalInput.style.cssText = 'width:50px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;text-align:center;';
+        const minutesText = document.createElement('span');
+        minutesText.textContent = 'min';
+        minutesText.style.cssText = 'font-size:13px;color:#6b7280;';
+        inputLabel.appendChild(inputText);
+        inputLabel.appendChild(intervalInput);
+        inputLabel.appendChild(minutesText);
+
+        const progressContainer = document.createElement('div');
+        progressContainer.style.cssText = 'position:relative;width:120px;height:6px;background-color:#e5e7eb;border-radius:999px;overflow:hidden;';
+        const progressBar = document.createElement('div');
+        progressBar.id = 'auto-refresh-progress';
+        progressBar.style.cssText = 'height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#4ade80);transition:width 1s linear;';
+        progressContainer.appendChild(progressBar);
+
+        container.appendChild(toggleLabel);
+        container.appendChild(inputLabel);
+        container.appendChild(progressContainer);
+        toolbar.appendChild(container);
+
+        toggleSwitch.addEventListener('change', (e) => {
+            autoRefreshEnabled = e.target.checked;
+            if (autoRefreshEnabled) {
+                refreshMinutes = parseInt(intervalInput.value) || 15;
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+
+        intervalInput.addEventListener('change', (e) => {
+            const newValue = parseInt(e.target.value);
+            if (newValue >= 1 && newValue <= 120) {
+                refreshMinutes = newValue;
+                if (autoRefreshEnabled) startAutoRefresh();
+            } else {
+                intervalInput.value = refreshMinutes;
+            }
+        });
+    }
+
+    setTimeout(injectAutoRefreshControls, 1000);
+
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((m) => { if (m.addedNodes.length) injectAutoRefreshControls(); });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+})();`,
+  },
+];
+
+async function seedDefaultScripts() {
+  const existing = await getScripts();
+  if (existing.length > 0) return;
+  const now = new Date().toISOString();
+  for (const def of DEFAULT_SCRIPTS) {
+    const script = {
+      id: crypto.randomUUID(),
+      name: def.name,
+      matchPattern: def.matchPattern,
+      code: def.code,
+      enabled: true,
+      createdAt: now,
+      updatedAt: now,
+      runLog: [],
+    };
+    await upsertScript(script);
+    if (chrome.userScripts) await registerScript(script).catch(() => {});
+    console.log(`[malpa] Seeded default script: "${script.name}"`);
+  }
+}
+
 // ── Startup ──────────────────────────────────────────────────────────────────
 
-chrome.runtime.onInstalled.addListener(reregisterAllScripts);
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === "install") await seedDefaultScripts();
+  await reregisterAllScripts();
+});
 chrome.runtime.onStartup.addListener(reregisterAllScripts);
 
 // ── Status broadcast ─────────────────────────────────────────────────────────
@@ -249,6 +451,7 @@ async function callOpenRouter(settings, messages) {
       messages,
       tools: TOOLS,
       tool_choice: "auto",
+      max_tokens: settings.maxTokens,
       stream: false,
     }),
   });
@@ -435,6 +638,7 @@ async function handleGenerate({ prompt, tabId, tabUrl }) {
 
   await upsertScript(script);
   await registerScript(script);
+  lokiLog({ event: "script_generated" }, { id: script.id, name: script.name, matchPattern: script.matchPattern });
   broadcastStatus("Script saved and registered!");
   broadcastDone(script);
 }
@@ -499,6 +703,7 @@ async function handleEditScript({ id, prompt }) {
   await unregisterScript(existing.id);
   await upsertScript(updated);
   if (updated.enabled) await registerScript(updated);
+  lokiLog({ event: "script_edited" }, { id: updated.id, name: updated.name, matchPattern: updated.matchPattern });
   broadcastStatus("Script updated!");
   broadcastDone(updated);
 }
@@ -515,6 +720,14 @@ async function handleLog({ scriptId, url, ok, error }) {
 
   script.runLog = [entry, ...(script.runLog || [])].slice(0, 200);
   await upsertScript(script);
+
+  lokiLog({ event: "script_run" }, {
+    scriptId,
+    scriptName: script.name,
+    url,
+    ok,
+    ...(error ? { error } : {}),
+  });
 }
 
 // ── Toggle/Delete handlers ────────────────────────────────────────────────────
@@ -533,13 +746,26 @@ async function handleToggleScript({ id, enabled }) {
   } else {
     await unregisterScript(script.id);
   }
+  lokiLog({ event: "script_toggled" }, { id, name: script.name, enabled });
+}
+
+async function handleSaveScriptCode({ id, code }) {
+  const scripts = await getScripts();
+  const script = scripts.find((s) => s.id === id);
+  if (!script) return;
+  script.code = code;
+  script.updatedAt = new Date().toISOString();
+  await upsertScript(script);
+  if (script.enabled) await registerScript(script);
 }
 
 async function handleDeleteScript({ id }) {
   const scripts = await getScripts();
+  const script = scripts.find((s) => s.id === id);
   const filtered = scripts.filter((s) => s.id !== id);
   await saveScripts(filtered);
   await unregisterScript(id);
+  lokiLog({ event: "script_deleted" }, { id, name: script?.name });
 }
 
 // ── Message router ────────────────────────────────────────────────────────────
@@ -549,14 +775,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (action === "generate") {
     handleGenerate(message)
-      .catch((e) => broadcastError(e.message));
+      .catch((e) => {
+        broadcastError(e.message);
+        lokiLog({ event: "error" }, { action: "generate", error: e.message });
+      });
     sendResponse({ ok: true });
     return false;
   }
 
   if (action === "editScript") {
     handleEditScript(message)
-      .catch((e) => broadcastError(e.message));
+      .catch((e) => {
+        broadcastError(e.message);
+        lokiLog({ event: "error" }, { action: "editScript", error: e.message });
+      });
     sendResponse({ ok: true });
     return false;
   }
@@ -564,6 +796,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (action === "log") {
     handleLog(message).catch(console.error);
     return false;
+  }
+
+  if (action === "saveScriptCode") {
+    handleSaveScriptCode(message).then(() => sendResponse({ ok: true })).catch((e) => {
+      sendResponse({ ok: false, error: e.message });
+    });
+    return true;
   }
 
   if (action === "toggleScript") {

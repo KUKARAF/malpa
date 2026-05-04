@@ -16,17 +16,39 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 const codeModal = document.getElementById("code-modal");
 const modalCode = document.getElementById("modal-code");
 const modalTitle = document.getElementById("modal-title");
-document.getElementById("modal-close").addEventListener("click", () => {
+const modalSaveMsg = document.getElementById("modal-save-msg");
+let modalScriptId = null;
+
+function closeCodeModal() {
   codeModal.classList.remove("open");
-});
+  modalScriptId = null;
+}
+
+document.getElementById("modal-close").addEventListener("click", closeCodeModal);
+document.getElementById("modal-cancel-btn").addEventListener("click", closeCodeModal);
 codeModal.addEventListener("click", (e) => {
-  if (e.target === codeModal) codeModal.classList.remove("open");
+  if (e.target === codeModal) closeCodeModal();
 });
 
-function showCodeModal(name, code) {
-  modalTitle.textContent = name;
-  modalCode.textContent = code;
+document.getElementById("modal-save-btn").addEventListener("click", () => {
+  if (!modalScriptId) return;
+  chrome.runtime.sendMessage({
+    action: "saveScriptCode",
+    id: modalScriptId,
+    code: modalCode.value,
+  }, () => {
+    modalSaveMsg.classList.add("visible");
+    setTimeout(() => modalSaveMsg.classList.remove("visible"), 2000);
+  });
+});
+
+function showCodeModal(script) {
+  modalScriptId = script.id;
+  modalTitle.textContent = script.name;
+  modalCode.value = script.code;
+  modalSaveMsg.classList.remove("visible");
   codeModal.classList.add("open");
+  modalCode.focus();
 }
 
 // ── Scripts rendering ──────────────────────────────────────────────────────
@@ -122,7 +144,7 @@ function renderScripts(scripts) {
   tbody.querySelectorAll(".view-code-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const script = scripts.find((s) => s.id === btn.dataset.id);
-      if (script) showCodeModal(script.name, script.code);
+      if (script) showCodeModal(script);
     });
   });
 

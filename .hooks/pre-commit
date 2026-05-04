@@ -1,0 +1,8 @@
+#!/bin/sh
+# Pre-commit hook — refuses commit if Loki logging is enabled.
+# Install: cp .hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+if grep -q "const LOKI_ENABLED = true" background.js; then
+  echo "ERROR: Loki logging is enabled. Set LOKI_ENABLED = false in background.js before committing."
+  exit 1
+fi

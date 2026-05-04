@@ -13,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Loki logging is disabled
+        run: |
+          if grep -q "const LOKI_ENABLED = true" background.js; then
+            echo "ERROR: Loki logging is enabled. Set LOKI_ENABLED = false in background.js before releasing."
+            exit 1
+          fi
+          echo "Loki logging disabled — OK"
+
       - name: Build zip
         run: |
           mkdir -p dist
